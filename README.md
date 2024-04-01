@@ -42,6 +42,6 @@ source ~/.bashrc
 ```
 
 ## Usage
-Please refer to the User Mannual `MRBIGR_manual.pdf` for details.
+Please refer to the local [`user manual`](MRBIGR_manual.pdf) or [online website](https://mrbigr.github.io) for details.
 
 
