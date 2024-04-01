@@ -27,7 +27,7 @@ source ~/.bashrc
 ```
 #Depends: R(>=3.6), python(>=3.7)
 
-git clone https://github.com/liusy-jz/MRBIGR.git
+git clone https://github.com/CrazyHsu/MRBIGR.git
 cd MRBIGR
 python setup.py build
 python setup.py install
