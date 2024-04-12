@@ -24,7 +24,7 @@ source ~/.bashrc
 ```
 
 ## Usage
-To reproduce the images in the MRBIGR paper, you can follow the instruments in [`reproduce/run.sh`]()
+To reproduce the images in the MRBIGR paper, you can follow the instruments in [`reproduce/run.sh`](reproduce/run.sh)
 
 You can also refer to the local :open_book:[`user manual`](MRBIGR_manual.pdf) or [online website](https://mrbigr.github.io) for more usage about MRBIGR.
 

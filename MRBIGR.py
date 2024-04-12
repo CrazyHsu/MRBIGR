@@ -793,7 +793,7 @@ def MRBIGR(args):
 		elif "qq" in sys.argv:
 			log = Logger('qq.plot.log.txt')
 		else:
-			log = Logger(args.o + '.plot.log.txt')
+			log = Logger(args.out_prefix + '.plot.log.txt')
 		log.log(sys.argv)
 		plot_new(args, sys.argv, log)
 	if args.command == "allele_freq":
