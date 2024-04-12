@@ -36,7 +36,7 @@ def module_identify(edge_weight_fn, module_size):
     prefix = edge_weight_fn.replace('.edge_list', '')
     cl1_path = ''
     for path in os.environ.get('PATH').split(':'):
-        if re.search(r'MODAS/utils', path):
+        if re.search(r'MRBIGR/utils', path):
             cl1_path = path.rstrip('/')
     if not cl1_path:
         return None
@@ -78,9 +78,9 @@ def hub_identify(edge_weight, cluster_one_res):
     return cluster_one_res, hub_res
 
 
-def module_network_plot(edge_weight, cluster_one_res, hub_res, prefix):
+def module_network_plot(edge_weight, cluster_one_res, hub_res, prefix, pfmt="pdf"):
     robjects.r('''
-        network_plot <- function(m_ew, m_hub, fn){
+        network_plot <- function(m_ew, m_hub, fn, pfmt){
             options(warn = - 1)
             suppressMessages(library(network))
             suppressMessages(library(ggplot2))
@@ -94,12 +94,13 @@ def module_network_plot(edge_weight, cluster_one_res, hub_res, prefix):
             m_hub[m_hub$hub_score>=0.8,'size'] <- 3
             col <- rev(scales::hue_pal()(3))[3-length(unique(m_hub$hub_score_range))+1:3]
             names(col) <- levels(m_hub$hub_score_range)
+            net %e% "weight" <- as.vector(m_ew$weight)
             suppressMessages(GGally::ggnet2(net, edge.size='weight',  mode = 'kamadakawai', edge.color = 'gray80',
                 size = m_hub$size, label = m_hub[m_hub$hub_score>=0.8, 'gene_id'],
                 color.legend = 'hub_score', color = m_hub$hub_score_range, palette=col) +
                 theme(legend.position = 'bottom') +
                 scale_size_discrete(guide = 'none'))
-            suppressMessages(ggsave(fn, device='pdf'))
+            suppressMessages(ggsave(fn, device=pfmt))
         }
     ''')
     network_plot = robjects.r('network_plot')
@@ -107,5 +108,5 @@ def module_network_plot(edge_weight, cluster_one_res, hub_res, prefix):
         gene_list = row['genes'].split(' ')
         m_ew = edge_weight.loc[(edge_weight['row'].isin(gene_list)) & (edge_weight['col'].isin(gene_list)), :]
         m_hub = hub_res.loc[hub_res['gene_id'].isin(gene_list), :]
-        network_plot(m_ew, m_hub, prefix+'_module'+str(row['module'])+'.pdf')
+        network_plot(m_ew, m_hub, prefix+'_module'+str(row['module'])+f'.{pfmt}', pfmt)
 

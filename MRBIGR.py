@@ -6,6 +6,7 @@ import mrbigr.mr as mmr
 import mrbigr.go as mgo
 import mrbigr.net as mnet
 import mrbigr.plot as mplt
+import mrbigr.plot_functions as mplt_new
 import argparse
 import sys, time, os, glob
 import traceback
@@ -162,7 +163,8 @@ def geno(args,log):
 				log.log('A nwk format ML-tree is built successfully.')
 			else:
 				log.log('Tree built raised an error!')
-
+			if args.plot:
+				pass
 
 
 def pheno(args,log):
@@ -170,6 +172,7 @@ def pheno(args,log):
 	if not os.path.exists(args.p):
 		raise ArgsError('The phenotype file {} is not exists.'.format(args.p))
 	phe = pd.read_csv(args.p, index_col=0)
+	phe_index_name = phe.index.name
 	if phe.empty:
 		log.log('The phenotype file {} is empty!'.format(args.phe))
 		sys.exit()
@@ -185,6 +188,7 @@ def pheno(args,log):
 			phe = mp.transpose(phe)
 			log.log('Transposition finished.')
 		if args.rout:
+			rout = args.rout
 			log.log('Perform outlier removal using {} method'.format(rout))
 			phe = mp.outlier(phe,rout)
 			log.log('Outlier data have been replaced by NA.')
@@ -260,6 +264,7 @@ def pheno(args,log):
 			phe = mp.blue(phe)
 		log.log('Successfully merged phenotype values from different enviroment.')
 
+	phe.index.name = phe_index_name
 	phe.to_csv(args.o+'.phe.csv', na_rep='NA')
 	log.log('phenotype processing is finished.')
 
@@ -288,9 +293,9 @@ def gwas(args, log):
 		if args.model:
 			model = args.model
 		if model == 'lmm':
-			s = mw.gwas_lmm(phe, args.g, thread)
+			s = mw.gwas_lmm(phe, args.g, thread, args.o)
 		if model == 'lm':
-			s = mw.gwas_lm(phe, args.g, thread)
+			s = mw.gwas_lm(phe, args.g, thread, args.o)
 		if s is None:
 			log.log('GWAS faild, please cheak your data.')
 			sys.exit()
@@ -358,19 +363,20 @@ def gwas(args, log):
 			shutil.rmtree(args.o+'/qqplot')
 		os.makedirs(args.o+'/manhattan_plot')
 		os.makedirs(args.o+'/qqplot')
-		s = mw.gwas_plot_parallel(1e-2, thread, 'pdf', input)
-		for fn in glob.glob('Manhattan.*pdf'):
-			if fn != 'Manhattan.multi_trait.pdf':
+		plot_format = args.plot_fmt
+		s = mw.gwas_plot_parallel(1e-2, thread, plot_format, input)
+		for fn in glob.glob(f'CMplot.Manhattan.*{plot_format}'):
+			if fn != f'CMplot.Manhattan.multi_trait.{plot_format}':
 				shutil.move(fn, args.o+'/manhattan_plot')
-		for fn in glob.glob('QQplot.*pdf'):
+		for fn in glob.glob(f'CMplot.QQplot.*{plot_format}'):
 			shutil.move(fn, args.o+'/qqplot')
 		if args.multi:
 			if not args.q:
 				raise ArgsError('Parameters -q must be set!')
 			log.log('Begin plot multi-trait manhattan plot...')
 			qtl = pd.read_csv(args.q, sep=',')
-			mw.multi_trait_plot(input, qtl, 'multi_trait', 'pdf')
-			shutil.move('./Manhattan.multi_trait.pdf', args.o)
+			mw.multi_trait_plot(input, qtl, 'multi_trait', plot_format)
+			shutil.move(f'./CMplot.Manhattan.multi_trait.{plot_format}', args.o+'/manhattan_plot')
 		log.log('GWAS Plot is done.')
 
 	if args.peaktest:
@@ -383,8 +389,8 @@ def gwas(args, log):
 		phe = pd.read_csv(args.p, index_col=0)
 		qtl = pd.read_csv(args.q, sep=',')
 		g = mw.read_genotype(args.g)
-		mw.boxplot(phe, g, qtl, args.o)
-		for fn in glob.glob('*boxplot.pdf'):
+		mw.boxplot(phe, g, qtl, args.o, pfmt=args.plot_fmt)
+		for fn in glob.glob(f'*boxplot.{args.plot_fmt}'):
 			shutil.move(fn, args.o+'/boxplot')
 		log.log('Peak haplptype test done and boxplots are generated.')
 
@@ -413,6 +419,8 @@ def mr(args, log):
 			sys.exit()
 		tf = pd.read_csv(args.tf, sep='\t')
 		target = pd.read_csv(args.target, sep='\t')
+		tf.columns = ["gene_id", "aliased", "position", "function"]
+		target.columns = ["gene_id", "aliased", "position", "function"]
 		mTrait = gene_exp.loc[:, gene_exp.columns.isin(tf.gene_id)]
 		pTrait = gene_exp.loc[:, gene_exp.columns.isin(target.gene_id)]
 	else:
@@ -437,7 +445,7 @@ def mr(args, log):
 	if qtl.empty:
 		log.log('the exposure QTL file {} is empty and software is terminated.'.format(args.qtl))
 		sys.exit()
-	mTrait = mTrait[qtl.phe_name.unique()]
+	mTrait = mTrait.loc[:, qtl.phe_name.unique()]
 	if not os.path.exists(args.g+'.bed'):
 		raise ArgsError('the plink bed format genotype file {} is not exists.'.format(args.g))
 	if args.lm and args.mlm:
@@ -501,9 +509,10 @@ def net(args, log):
 	log.log('begin hub node analysis of each module')
 	cluster_one_res, hub_res = mnet.hub_identify(ew, cluster_one_res)
 	cluster_one_res.to_csv(args.o+'.module.csv', index=False)
+	hub_res.to_csv(args.o + '.hub.csv', index=False)
 	if args.plot:
 		log.log('begin plot network of each module')
-		mnet.module_network_plot(ew, cluster_one_res, hub_res, args.o)
+		mnet.module_network_plot(ew, cluster_one_res, hub_res, args.o, pfmt=args.plot_fmt)
 	log.log('Network analysis is done.')
 
 
@@ -554,7 +563,7 @@ def go(args, log):
 			log.log('GO enrichment analysis is complete.')
 	res.to_csv(args.o+'.GO.csv', index=False)
 	log.log('begin visualize GO enrichment result...')
-	s = mgo.go_plot(res, args.plot_type.split(','), args.o)
+	s = mgo.go_plot(res, args.plot_type.split(','), args.o, pfmt=args.plot_fmt)
 	if s:
 		log.log('Successful visualization of GO enrichment results')
 	else:
@@ -565,21 +574,16 @@ def plot(args, log):
 	log.log('begin reading file used in plotting...')
 	if args.plot_type == 'manhattan':
 		log.log('begin manhattan plot')
-		s = mplt.manhattan_plot(args.i, args.o)
+		s = mplt.manhattan_plot(args.i, args.o, chrom=args.chrom, start=args.start, end=args.end, hl_pos=args.hl_pos,
+								hl_text=args.hl_text, input_sep=args.input_sep, pfmt=args.plot_fmt)
 	if args.plot_type == 'qqplot':
 		log.log('begin QQ plot')
-		s = mplt.qq_plot(args.i, args.o)
+		s = mplt.qq_plot(args.i, args.o, pfmt=args.plot_fmt)
 	if args.plot_type == 'SNPdensity':
 		log.log('begin SNP density plot')
-		s = mplt.snp_density_plot(args.i, args.o)
+		s = mplt.snp_density_plot(args.i, args.o, pfmt=args.plot_fmt)
 	if not os.path.exists(args.i):
 		raise ArgsError('the file used in plotting {} is not exists.'.format(args.i))
-	i = pd.read_csv(args.i)
-	if i.empty:
-		log.log('the file used in plotting {} is not exists'.format(args.i))
-		sys.exit()
-	i.columns = [c.replace('/', '.') for c in i.columns]
-	i.columns = ['X'+c if re.match(r'\d+', c) else c for c in i.columns]
 	if args.order is not None:
 		log.log('begin reading order file...')
 		if not os.path.exists(args.order):
@@ -601,6 +605,28 @@ def plot(args, log):
 				log.log('warnings:the group file {} is empty, plotting without group classification.'.format(args.group))
 	else:
 		group = pd.DataFrame()
+
+	if args.plot_type == 'tree':
+		log.log('begin phylogenetic tree plot')
+		group_file = ""
+		drop_file = ""
+		if args.group:
+			group_file = args.group
+		if args.drops:
+			drop_file = args.drops
+		s = mplt.phylo_plot(nwk_file=args.i, output_prefix=args.o, group_file=group_file, group_sep=args.group_sep,
+							drops=drop_file, pfmt=args.plot_fmt)
+		log.log('plotting is done')
+		return
+		# phylo_plot(args.plink_bed, args.out_prefix, nwk_file=args.nwk_file, group_file=args.group_file,
+		# 		   group_sep=args.group_sep, selected_lines=args.sub_lines, drop_line=args.drop_lines)
+
+	i = pd.read_csv(args.i)
+	if i.empty:
+		log.log('the file used in plotting {} is not exists'.format(args.i))
+		sys.exit()
+	i.columns = [c.replace('/', '.') for c in i.columns]
+	i.columns = ['X' + c if re.match(r'\d+', c) else c for c in i.columns]
 	if args.plot_type == 'forestplot':
 		log.log('begin plotting Mendelian Randomization forest plot')
 		for mTrait in i['mTrait'].unique():
@@ -610,7 +636,7 @@ def plot(args, log):
 				if args.order is not None:
 					d.index = d['pTrait']
 					d = d.reindex(order.iloc[:, 0].values)
-				s = mplt.forest_plot(d, mTrait, snp, args.o)
+				s = mplt.forest_plot(d, mTrait, snp, args.o, pfmt=args.plot_fmt)
 				if not s:
 					log.log('mTrait {} with snp {} forest plot is failed'.format(mTrait, snp))
 	if args.plot_type == 'scatter_mr':
@@ -619,22 +645,117 @@ def plot(args, log):
 			mr_sub = i.loc[i.mTrait == mTrait, :]
 			for snp in mr_sub['snp'].unique():
 				d = mr_sub.loc[mr_sub.snp == snp, :]
-				s = mplt.scatter_plot_mr(d, group, mTrait, snp, args.o)
+				s = mplt.scatter_plot_mr(d, group, mTrait, snp, args.o, pfmt=args.plot_fmt)
 				if not s:
 					log.log('mTrait {} with snp {} scatter plot is failed'.format(mTrait, snp))
 	if args.plot_type == 'hist':
 		log.log('begin histogram plot')
-		s = mplt.hist_plot(i, args.o)
+		s = mplt.hist_plot(i, args.o, pfmt=args.plot_fmt)
 	if args.plot_type == 'scatter_ps':
 		log.log('begin population structure scatter plot')
-		s = mplt.scatter_plot_ps(i, group, args.o)
+		s = mplt.scatter_plot_ps(i, group, args.o, pfmt=args.plot_fmt)
 	if args.plot_type == 'boxplot':
 		log.log('begin boxplot plot')
-		s = mplt.box_plot(i, group, args.o)
+		s = mplt.box_plot(i, group, args.o, pfmt=args.plot_fmt)
 	if args.plot_type in ['barplot', 'dotplot']:
-		s = mgo.go_plot(i, args.plot_type, args.o)
+		s = mgo.go_plot(i, args.plot_type, args.o, pfmt=args.plot_fmt)
 	if args.plot_type not in ['forest_plot', 'scatter_plot_mr'] and s:
 		log.log('plotting is done')
+
+
+def plot_new(args, argv, log):
+	log.log('begin reading file used in plotting...')
+	if "phylotree" in argv:
+		log.log('begin phylogenetic tree plot')
+		mplt_new.phylo_plot(plink_bed=args.plink_bed, output_prefix=args.out_prefix, nwk_file=args.nwk_file,
+							group_file=args.group_file, group_sep=args.group_sep, selects=args.sub_lines,
+							drops=args.drop_lines, pfmt=args.plot_fmt)
+	if "scatterps" in argv:
+		log.log('begin scatter plot for population structure')
+		mplt_new.scatterps_plot(args.input, group_file=args.group_file, ps_type=args.ps_type,
+								out_plot_prefix=args.out_prefix, input_sep=args.input_sep,
+								group_sep=args.group_sep, pfmt=args.plot_fmt)
+	if "manhattan" in argv:
+		log.log('begin manhattan plot')
+		thresholdi = [args.thresholdD, args.thresholdL, args.thresholdU]
+		mplt_new.manhattan_plot(args.input, args.out_dir, thresholdi=thresholdi, gwas_sep=args.input_sep,
+								data_from=args.data_from, threads=int(args.threads), dpi=int(args.dpi),
+								select_chrom=args.chrom, select_start=int(args.start), select_end=int(args.end),
+								highlight_pos=args.hl_pos, highlight_text=args.hl_text, pfmt=args.plot_fmt)
+	if "qq" in argv:
+		log.log('begin QQ plot')
+		mplt_new.qq_plot(args.input, args.out_dir, gwas_sep=args.input_sep, data_from=args.data_from,
+						 threads=int(args.threads), dpi=int(args.dpi), threshold=float(args.threshold),
+						 pfmt=args.plot_fmt)
+	if "phebox" in argv:
+		log.log('begin boxplot for different phenotype')
+		mplt_new.box_plot(args.input, args.snp, args.group, args.selected_genes, args.selected_snps,
+						  args.selected_strains, str(args.scale), args.plot_type, args.out_prefix, pfmt=args.plot_fmt)
+	if "forest" in argv:
+		log.log('begin forest plot for MR result')
+		mplt_new.forest_plot(args.input, args.out_prefix, order_by_name=args.order_by_name,
+							 order_by_effect=args.order_by_effect, order_by_group=args.order_by_group,
+							 group=str(args.group), sep=args.input_sep, height=float(args.height),
+							 width=float(args.width), pfmt=args.plot_fmt)
+	if "scattermr" in argv:
+		log.log('begin scatter plot for MR result')
+		mplt_new.scattermr_plot(args.input, args.out_prefix, group_file=args.group_file,
+								order_by_group=args.order_by_group, order_by_pvalue=args.order_by_pvalue,
+								sep=args.input_sep, height=float(args.height), width=float(args.width),
+								sig_p=args.sig_p, pfmt=args.plot_fmt)
+	if "net" in argv:
+		log.log('begin plot network for MR result')
+		mplt_new.net_plot(args.input, args.out_prefix, args.input_sep, args.pvalue, module_size=args.module_size,
+						  height=args.height, width=args.width, pfmt=args.plot_fmt)
+	if "go" in argv:
+		log.log('begin go enrichment plot for the genes')
+		mplt_new.go_plot(args.input, args.gene2go, args.bg_sep, plot_type=args.plot_type, sigp=args.sigp,
+						 adjustp=args.adjustp, out_prefix=args.out_prefix, height=args.height, width=args.width,
+						 pfmt=args.plot_fmt)
+	if "heatmap" in argv:
+		log.log('begin heatmap')
+		mplt_new.heatmap(args.input, args.out_prefix, select_rows=str(args.row_select), select_cols=str(args.col_select),
+						cluster_rows=args.cluster_rows, cluster_cols=args.cluster_cols,
+						order_col_by=args.order_col_by, order_row_by=args.order_row_by,
+						anno_row=args.anno_row, anno_col=args.anno_col, scale_by=args.scale_by,
+						show_colnames=args.show_colnames, show_rownames=args.show_rownames,
+						height=args.height, width=args.width, pfmt=args.plot_fmt)
+	if "nd" in argv:
+		log.log('begin nucleotide density plot')
+		mplt_new.nucleotide_dst_plot(args.plink_bed, args.group_file, args.gff_annotation, gene_list=args.select_genes,
+									chrom=args.chrom, chr_start=int(args.chrom_start) - 50, chr_end=int(args.chrom_end) + 50,
+									diversity_method=args.method, plot_by_gene=args.plot_by_gene, keep_temp=args.keep_temp,
+									out_dir=args.out_dir, out_prefix=args.out_prefix,
+									left_offset=args.left_offset, right_offset=args.right_offset,
+									window_size=args.window_size, window_step=args.window_step, smooth=args.smooth,
+									plot_left_expand=args.plot_left_expand, plot_right_expand=args.plot_right_expand,
+									pfmt=args.plot_fmt)
+	if "group" in argv:
+		log.log('begin group plot')
+		mplt_new.group_plot(args.input, args.out_prefix, sep=args.sep, group_field=args.group_field,
+							value_field=args.value_field, fill_field=args.fill_field, group_min_n=args.group_min_n,
+							height=float(args.height), width=float(args.width), add_pvalue=args.add_pvalue,
+							pfmt=args.plot_fmt, group_order=args.group_order)
+	log.log('plotting is done')
+
+
+def allele_freq(args, log):
+	log.log('begin reading file used in allele frequency analysis...')
+	snps = args.snps
+	if args.from_file and os.path.isfile(args.snps):
+		with open(args.snps) as f:
+			snps = [i.strip() for i in f.readlines()]
+			snps = ",".join(snps)
+	mplt_new.calc_allele_freq(args.plink_bed, snps, args.group_file, args.group_sep, args.out_prefix, args.height,
+							  args.width, pfmt=args.plot_fmt)
+	log.log('Allele frequency analysis is done')
+
+
+def rd(args, log):
+	log.log('begin reading file used in reducing dimensions...')
+	mplt_new.phe_reduce_dimension(args.input, args.group_for_phe, args.selected_strains, args.method, args.input_sep,
+								  args.group_sep, args.group_min_n, args.out_prefix)
+	log.log('Reducing dimensions is done')
 
 
 def MRBIGR(args):
@@ -643,7 +764,7 @@ def MRBIGR(args):
 		log.log(sys.argv)
 		geno(args, log)
 	if args.command == 'pheno':
-		log = Logger(args.o+'.phen.log.txt')
+		log = Logger(args.o+'.phe.log.txt')
 		log.log(sys.argv)
 		pheno(args, log)
 	if args.command == 'gwas':
@@ -662,10 +783,27 @@ def MRBIGR(args):
 		log = Logger(args.o+'.go.log.txt')
 		log.log(sys.argv)
 		go(args, log)
-	if args.command == 'plot':
+	if args.command == 'plot_old':
 		log = Logger(args.o + '.plot.log.txt')
 		log.log(sys.argv)
 		plot(args, log)
+	if args.command == 'plot_new':
+		if "manhattan" in sys.argv:
+			log = Logger('manhattan.plot.log.txt')
+		elif "qq" in sys.argv:
+			log = Logger('qq.plot.log.txt')
+		else:
+			log = Logger(args.o + '.plot.log.txt')
+		log.log(sys.argv)
+		plot_new(args, sys.argv, log)
+	if args.command == "allele_freq":
+		log = Logger(args.out_prefix + '.allele_freq.log.txt')
+		log.log(sys.argv)
+		allele_freq(args, log)
+	if args.command == "rd":
+		log = Logger(args.out_prefix + '.reduce_dimension.log.txt')
+		log.log(sys.argv)
+		rd(args, log)
 
 
 USAGE = ' MRBIGR: Mendelian Randomization-Based Inference of Genetic Regulation -- a toolkit for pre-GWAS, GWAS and especially, post-GWAS analysis '
@@ -743,6 +881,7 @@ parser_gwas.add_argument('-genetest', action='store_true', help='Perform gene-ba
 parser_gwas.add_argument('-f1', help='QTL annotation file in *.csv format generated by the subcommand gwas –anno. It should be used together with the parameter –genetest.')
 parser_gwas.add_argument('-f2', help='Genotype annotation file in *.bed format generated by the subcommand geno –anno. It should be used together with the parameter –genetest.')
 parser_gwas.add_argument('-vcf', help='VCF format genotype file. It should be used together with the parameter –genetest.')
+parser_gwas.add_argument('-plot_fmt', default='pdf', metavar='[jpg,pdf]', help='The format of manhattan and QQ plot.')
 
 parser_mr = subparsers.add_parser('mr', help='perform Mendelian Randomization analysis', usage='%(prog)s [options]')
 parser_mr.add_argument('-g', metavar='', help='Genotype file in plink bed format')
@@ -770,6 +909,7 @@ parser_net.add_argument('-mr', metavar='', help='pairwise Mendelian Randomizatio
 parser_net.add_argument('-module_size', metavar='[5]', default=5, type=int, help='minimal size of genes in a module,default 5')
 parser_net.add_argument('-pvalue', metavar='[1e-3]', default=1e-3, type=float, help='pvalue cutoff for MR-based network analysis,default 1e-3')
 parser_net.add_argument('-plot', action='store_true', help='plot network of each module')
+parser_net.add_argument('-plot_fmt', default='pdf', metavar='[jpg,pdf]', help='The format of the output plots')
 parser_net.add_argument('-o', default='net_out', metavar='[net_out]', help='The prefix of the output file, default go_out')
 
 parser_go = subparsers.add_parser('go', help='perform GO enrichment analysis', usage='%(prog)s [options]')
@@ -778,14 +918,53 @@ parser_go.add_argument('-go_anno', metavar='', default=None, help='GO annotation
 parser_go.add_argument('-gene_info', metavar='', help='gene information file used to construct GO annotation database')
 parser_go.add_argument('-pvalue', metavar='', default=0.05, type=float, help='adjusted pvalue cutoff on enrichment tests to report')
 parser_go.add_argument('-plot_type', default='dotplot', metavar='[dotplot]', help='Visualization types of GO enrichment result, support barplot, dotplot, Gene-Concept Network(cnetplot), heatplot, Enrichment Map(emapplot) and upsetplot, one or more plot types can be specified at the same time, multiple types are separated by commas, such as barplot,emapplot,heatplot')
+parser_go.add_argument('-plot_fmt', default='pdf', metavar='[jpg,pdf]', help='The format of the output plots')
 parser_go.add_argument('-o', default='go_out', metavar='[go_out]', help='The prefix of the output file, default go_out')
 
-parser_plot = subparsers.add_parser('plot', help='Visualize the results generated by MRBIGR and the data used in MRBIGR by various types of plots')
-parser_plot.add_argument('-i', metavar='', help='the result file generated by MRBIGR or the data file used in MRBIGR, the file format is csv format')
-parser_plot.add_argument('-plot_type', metavar='', help='Visualization type of the result file generated by MRBIGR or the data file used in MRBIGR,including scatter_mr, forestplot, manhattan, qqplot, SNPdensity, hist, boxplot, scatter_ps, barplot, dotplot; support scatterplot and forest plot for Mendelian Randomization analysis, manhattan plot and QQ plot for GWAS result, SNP density plot for GWAS result and SNP info file, boxplot and histogram for phenotype data, barplot and dotplot for GO enrich result, scatter plot for population structure.')
+parser_plot = subparsers.add_parser('plot_old', help='Visualize the results generated by MRBIGR and the data used in MRBIGR by various types of plots')
+parser_plot.add_argument('-i', metavar='', help='The result file generated by MRBIGR or the data file used in MRBIGR, the file format is csv format')
+parser_plot.add_argument('-plot_type', metavar='', help='Visualization type of the result file generated by MRBIGR or the data file used in MRBIGR,including tree, scatter_mr, forestplot, manhattan, qqplot, SNPdensity, hist, boxplot, scatter_ps, barplot, dotplot; support tree plot for phylogenetic tree analysis, scatterplot and forest plot for Mendelian Randomization analysis, manhattan plot and QQ plot for GWAS result, SNP density plot for GWAS result and SNP info file, boxplot and histogram for phenotype data, barplot and dotplot for GO enrich result, scatter plot for population structure.')
 parser_plot.add_argument('-order', metavar='', default=None, help='Visualizing the results of Mendelian randomization in the order of trait in the file, uesed in forest plot')
-parser_plot.add_argument('-group', metavar='', default=None, help='group file for scatter plot and boxplot')
+parser_plot.add_argument('-group', metavar='', default=None, help='Group file for scatter plot, boxplot and tree plot')
+parser_plot.add_argument('-group_sep', metavar='', default=',', help='Delimiter used in group file')
+parser_plot.add_argument('-drops', metavar='', default=None, help='Strains used to drop')
+parser_plot.add_argument('-plot_fmt', default='pdf', metavar='[jpg,pdf]', help='The format of the output plots')
+parser_plot.add_argument("-chrom", metavar="", type=str, default="", help="Specify the chromosome for manhattan plot. Default plot all the chromosomes")
+parser_plot.add_argument("-start", metavar="", type=int, default=0, help="Specify the start position for manhattan plot. Default: 0")
+parser_plot.add_argument("-end", metavar="", type=int, default=0, help="Specify the start position for manhattan plot. Default: length of chromosome")
+parser_plot.add_argument("-hl_pos", metavar="", type=str, default="", help="Specify the position of SNPs to be highlighted for manhattan plot. Use comma to separate multiple positions.")
+parser_plot.add_argument("-hl_text", metavar="", type=str, default="", help="The texts to be highlighted for manhattan plot. Use comma to separate multiple positions.")
+parser_plot.add_argument("-input_sep", metavar="", type=str, default="\t", help="The separator in GWAS result file. Default: tab")
 parser_plot.add_argument('-o', default='plot_out', metavar='[plot_out]', help='The prefix of the output file, default plot_out')
+
+# allele frequency
+parser_allele_freq = subparsers.add_parser('allele_freq', help='Calculate the allele frequency of selected SNPs', usage='%(prog)s [options]')
+parser_allele_freq.add_argument("-bed", dest="plink_bed", required=True, help="The plink bed file")
+parser_allele_freq.add_argument("-snps", dest="snps", help="The selected SNPs with comma separated.")
+parser_allele_freq.add_argument("-from_file", action="store_true", default=False,  help="Specify the SNPs from file")
+parser_allele_freq.add_argument("-group", dest="group_file", help="The group file")
+parser_allele_freq.add_argument("-group_sep", dest="group_sep", type=str, default=",", help="The separator in group file. Default: comma")
+parser_allele_freq.add_argument("-o", dest="out_prefix", type=str, default="MRBIGR", help="The output prefix. Default: MRBIGR")
+parser_allele_freq.add_argument("-plot", action='store_true', help="Whether to plot")
+parser_allele_freq.add_argument('-plot_fmt', default='pdf', metavar='[jpg,pdf]', help='The format of the output plots. It should be used together with the parameter –plot.')
+parser_allele_freq.add_argument("-width", dest="width", type=float, default=3, help="The width of output file. It should be used together with the parameter –plot. Default: 3.0")
+parser_allele_freq.add_argument("-height", dest="height", type=float, default=4, help="The height of output file. It should be used together with the parameter –plot. Default: 4.0")
+
+# dimensionality reduction for phenotypes
+parser_rd = subparsers.add_parser('rd', help='Reduce dimension for phenotypes', usage='%(prog)s [options]')
+parser_rd.add_argument("-i", dest="input", help="The expression file")
+parser_rd.add_argument("-group_for_phe", dest="group_for_phe", help="The group file used to group phenotypes such as gene expression or metabolite abundance")
+parser_rd.add_argument("-s_strains", dest="selected_strains", default=None, help="The file listing selected strains or a string with comma separated")
+parser_rd.add_argument("-input_sep", dest="input_sep", default=",", help="The separator in input file. Default: comma")
+parser_rd.add_argument("-group_sep", dest="group_sep", default=",", help="The separator in group file. Default: comma")
+parser_rd.add_argument("-m", dest="method", choices=["pca", "tsne", "mean", "median"], default="pca", help="The method used to reduce the dimension. Default: pca.")
+parser_rd.add_argument("-group_min_n", dest="group_min_n", default=0, type=int, help="The minimal number of elements in each group. Default: 0")
+parser_rd.add_argument("-o", dest="out_prefix", type=str, default="MRBIGR", help="The output prefix. Default: MRBIGR")
+
+
+####################
+from mrbigr.parse_plot_new import parse_plot_new
+parse_plot_new(subparsers, sys)
 
 
 if __name__ == "__main__":

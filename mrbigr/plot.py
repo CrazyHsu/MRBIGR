@@ -5,11 +5,29 @@ from rpy2.robjects import pandas2ri
 import rpy2.robjects as robjects
 from rpy2.rinterface_lib.embedded import RRuntimeError
 import os, re
+from mrbigr.comm_functions import *
 
 
-def forest_plot(MR_res, mTrait, snp, o):
+def phylo_plot(plink_bed=None, output_prefix=None, nwk_file=None, group_file=None, group_sep=",", selects=None, drops=None, pfmt="pdf"):
+    if nwk_file == None or not os.path.exists(nwk_file):
+        command = 'plink --bfile {} --recode --out {} --silent --allow-no-sex'.format(plink_bed, output_prefix)
+        if selects:
+            command = command + ' --keep {}'.format(selects)
+        os.system(command)
+        ped_file = output_prefix + '.ped'
+        fasta_file = output_prefix + '.fasta'
+        ped2fasta(ped_file, fasta_file)
+        nwk_file = '{}.tree.nwk'.format(output_prefix)
+        command = 'FastTree -nt -gtr -quiet {} > {}'.format(fasta_file, nwk_file)
+        os.system(command)
+    from mrbigr.plotWithR import drawPhyloPlotR
+    robjects.r(drawPhyloPlotR)
+    robjects.r.drawPhyloPlot(nwk_file, output_prefix, drops, group_file, group_sep, pfmt)
+
+
+def forest_plot(MR_res, mTrait, snp, o, pfmt="pdf"):
     robjects.r('''
-        p <- function(d, mTrait, snp, o)
+        p <- function(d, mTrait, snp, o, pfmt)
         {
             suppressMessages(library(ggplot2))
             suppressMessages(library(scales))
@@ -35,20 +53,20 @@ def forest_plot(MR_res, mTrait, snp, o):
                   axis.text.y = element_text(color=hue_pal()(nrow(d))))+
                   xlab('') + ylab('') +
                   ggtitle(paste(mTrait, snp, sep='_'))
-            ggsave(paste(o, mTrait, snp, 'forestplot.pdf', sep='_'), device='pdf', height=6, width=4)
+            ggsave(paste(o, mTrait, snp, paste('forestplot', pfmt, sep='.'), sep='_'), device=pfmt, height=6, width=4)
         }
     ''')
     p = robjects.r('p')
     try:
-        p(MR_res, mTrait, snp, o)
+        p(MR_res, mTrait, snp, o, pfmt)
         return True
     except RRuntimeError:
         return False
 
 
-def scatter_plot_mr(MR_res, g, mTrait, snp, o):
+def scatter_plot_mr(MR_res, g, mTrait, snp, o, pfmt="pdf"):
     robjects.r('''
-        p <- function(d, a, mTrait, snp, o){
+        p <- function(d, a, mTrait, snp, o, pfmt){
             suppressMessages(library(ggplot2))
             suppressMessages(library(ggrepel))
             if(nrow(a)==0){
@@ -62,7 +80,7 @@ def scatter_plot_mr(MR_res, g, mTrait, snp, o):
             res$log10p <- -log10(res$pvalue)
             res[res$effect<0,'log10p'] <- -res[res$effect<0,'log10p']
             #res$chrom <- factor(res$chrom, levels = paste('chr',sort(unique(res$chr)),sep=''))
-            #res <- res[order(-res$log10p),]
+            # res <- res[order(-res$log10p),]
             res$pos <- seq(1,nrow(res))
             scatter_plot <- ggplot(data=res,aes(x=pos,y=log10p,color=group))+
                   geom_hline(yintercept=log10(0.05/nrow(res)), linetype="dashed", color = "red", size=1)+
@@ -81,38 +99,66 @@ def scatter_plot_mr(MR_res, g, mTrait, snp, o):
                 #scatter_plot <- scatter_plot + geom_text(aes(label=id),hjust=0, vjust=0)
                 scatter_plot <- scatter_plot + geom_label_repel(aes(label=id))
             }
-            ggsave(paste(o, mTrait, snp, 'scatterplot.pdf', sep='_'), plot=scatter_plot, device = 'pdf',height = 5,width = 9)
+            ggsave(paste(o, mTrait, snp, paste('scatterplot', pfmt, sep='.'), sep='_'), plot=scatter_plot ,height = 5,width = 9)
         }
     ''')
     p = robjects.r('p')
     try:
-        p(MR_res, g, mTrait, snp, o)
+        p(MR_res, g, mTrait, snp, o, pfmt)
         return True
     except RRuntimeError:
         return False
 
 
-def manhattan_plot(d_fn, o):
+def manhattan_plot(d_fn, o, input_sep="\t", chrom="", start=0, end=0, hl_pos="", hl_text="", pfmt="pdf"):
     try:
-        data_table = importr('data.table')
-        base = importr('base')
-        d = data_table.fread(d_fn, data_table=base.getOption("datatable.fread.datatable", False))
-        #d.columns = ['SNP', 'Chromosome', 'Position', o]
-        thresholdi = robjects.FloatVector([1.0 / d.shape[0], 1e-6, 1e-5])
-        lim = -np.log10(d[d.columns[3:]].min().values) + 2
-        base.sink('/dev/null')
-        for path in os.environ.get('PATH').split(':'):
-            if re.search(r'MRBIGR/utils', path):
-                robjects.r('source("' + path + '/CMplot.r")')
-        CMplot = robjects.r['CMplot']
-        CMplot(d, plot_type='m', col=robjects.StrVector(["grey30", "grey60"]), ylim=robjects.FloatVector([2, lim]),
-               threshold=thresholdi,
-               cex=robjects.FloatVector([0.5, 0.5, 0.5]), signal_cex=robjects.FloatVector([0.5, 0.5, 0.5]),
-               threshold_col=robjects.StrVector(['red', 'green', 'blue']), chr_den_col=robjects.rinterface.NULL,
-               amplify=True,
-               signal_pch=robjects.IntVector([19, 19, 19]), dpi=300,
-               signal_col=robjects.StrVector(['red', 'green', 'blue']), multracks=False, LOG10=True, file='pdf', file_prefix=o)
-        base.sink()
+        if hl_pos == "":
+            hl_pos_list = "NULL"
+            hl_text_list = "NULL"
+        else:
+            hl_pos_list = hl_pos.split(",")
+            hl_text_list = hl_text.split(",")
+            if len(hl_pos_list) > 0 and len(hl_text_list) == 0:
+                hl_text_list = hl_pos_list
+        this_file_path = os.path.dirname(os.path.realpath(__file__))
+        if hl_pos == "":
+            pandas2ri.activate()
+            data_table = importr('data.table')
+            base = importr('base')
+            d = data_table.fread(d_fn, data_table=base.getOption("datatable.fread.datatable", False))
+            d.chr = d.chr.astype(str)
+            # d.columns = ['SNP', 'Chromosome', 'Position', o]
+            thresholdi = robjects.FloatVector([1.0 / d.shape[0], 1e-6, 1e-5])
+            lim = -np.log10(d.p_wald.min()) + 2
+            base.sink('/dev/null')
+            if chrom:
+                d = d.loc[d.chr == chrom,]
+                if end > start:
+                    d = d.loc[(d.ps >= start) & (d.ps <= end),]
+
+            cmplot_2018 = os.path.join(this_file_path, "../utils", "CMplot_2018.r")
+            robjects.r('source("' + cmplot_2018 + '")')
+            CMplot = robjects.r['CMplot']
+            CMplot(d, plot_type='m', col=robjects.StrVector(["grey30", "grey60"]), ylim=robjects.FloatVector([2, lim]),
+                   threshold=thresholdi, cex=robjects.FloatVector([0.5, 0.5, 0.5]),
+                   signal_cex=robjects.FloatVector([0.5, 0.5, 0.5]),
+                   threshold_col=robjects.StrVector(['red', 'green', 'blue']), chr_den_col=robjects.rinterface.NULL,
+                   amplify=True, signal_pch=robjects.IntVector([19, 19, 19]), dpi=300,
+                   signal_col=robjects.StrVector(['red', 'green', 'blue']), multracks=False, LOG10=True, file=pfmt,
+                   file_prefix=o)
+            base.sink()
+        else:
+            cmplot_2021 = os.path.join(this_file_path, "../utils", "CMplot_2021.r")
+            from mrbigr.plotWithR import drawManhattanPlotR_2021
+            from rpy2.rinterface_lib.callbacks import logger as rpy2_logger
+            import logging
+            rpy2_logger.setLevel(logging.ERROR)
+            robjects.r('source("' + cmplot_2021 + '")')
+            robjects.r(drawManhattanPlotR_2021)
+            thresholdi = "None,1e-6,1e-5"
+            in_base_name = os.path.basename(d_fn)
+            robjects.r.drawManhattanPlot(d_fn, thresholdi, o, input_sep, in_base_name, 500, chrom, start, end, hl_pos,
+                                         hl_text, pfmt)
     except RRuntimeError:
         return False
     except ValueError:
@@ -121,7 +167,7 @@ def manhattan_plot(d_fn, o):
         return True
 
 
-def qq_plot(d_fn, o):
+def qq_plot(d_fn, o, pfmt="pdf"):
     try:
         data_table = importr('data.table')
         base = importr('base')
@@ -130,10 +176,10 @@ def qq_plot(d_fn, o):
         base.sink('/dev/null')
         for path in os.environ.get('PATH').split(':'):
             if re.search(r'MRBIGR/utils', path):
-                robjects.r('source("' + path + '/CMplot.r")')
+                robjects.r('source("' + path + '/CMplot_2018.r")')
         CMplot = robjects.r['CMplot']
         CMplot(d, plot_type='q', col='grey30', conf_int_col='gray', signal_col='red', multracks=False, LOG10=True,
-               file='pdf', dpi=300, file_prefix=o)
+               file=pfmt, dpi=300, file_prefix=o)
         base.sink()
     except RRuntimeError:
         return False
@@ -143,9 +189,9 @@ def qq_plot(d_fn, o):
         return True
 
 
-def scatter_plot_ps(d, g, o):
+def scatter_plot_ps(d, g, o, pfmt="pdf"):
     robjects.r('''
-        p <- function(d, g, o){
+        p <- function(d, g, o, pfmt){
             suppressMessages(library(ggplot2))
             d <- d[c(1,2,3)]
             if(nrow(g)!=0){
@@ -167,20 +213,20 @@ def scatter_plot_ps(d, g, o):
             if(nrow(g)==0){
                 scatter_plot <- scatter_plot + theme(legend.position='none')
             }
-            ggsave(paste(o,'scatter_ps.pdf', sep='_'), plot=scatter_plot, width = 4.2, height = 3)
+            ggsave(paste(o,paste('scatter_ps', pfmt, sep='.'), sep='_'), plot=scatter_plot, width = 4.2, height = 3)
         }
     ''')
     p = robjects.r('p')
     try:
-        p(d, g, o)
+        p(d, g, o, pfmt)
         return True
     except RRuntimeError:
         return False
 
 
-def hist_plot(d, o):
+def hist_plot(d, o, pfmt="pdf"):
     robjects.r('''
-        p <- function(d, o){
+        p <- function(d, o, pfmt){
             suppressMessages(library(ggplot2))
             d <- na.omit(d)
             ggplot(data=d, aes_string(x=names(d)[2]))+
@@ -194,20 +240,20 @@ def hist_plot(d, o):
                       panel.grid = element_blank()
                 )+
                 ylab('Freq')
-            ggsave(paste(o, 'hist.pdf', sep='_'),width = 3, height = 3)
+            ggsave(paste(o, paste('hist', pfmt, sep='.'), sep='_'),width = 3, height = 3)
         }
     ''')
     p = robjects.r('p')
     try:
-        p(d, o)
+        p(d, o, pfmt)
         return True
     except RRuntimeError:
         return False
 
 
-def box_plot(d, g, o):
+def box_plot(d, g, o, pfmt="pdf"):
     robjects.r('''
-        p <- function(d, g, o){
+        p <- function(d, g, o, pfmt){
             suppressMessages(library(ggplot2))
             if(nrow(g)!=0){
                 d$group <- g[match(d[,1], g[,1]),2]
@@ -238,18 +284,18 @@ def box_plot(d, g, o):
                     legend.position = 'none'
               )+
               xlab('')
-            ggsave(paste(o, 'boxplot.pdf', sep='_'), width = width, height = 3)
+            ggsave(paste(o, paste('boxplot', pfmt, sep='.'), sep='_'), width = width, height = 3)
         }
     ''')
     p = robjects.r('p')
     try:
-        p(d, g, o)
+        p(d, g, o, pfmt)
         return True
     except RRuntimeError:
         return False
 
 
-def snp_density_plot(d_fn, o):
+def snp_density_plot(d_fn, o, pfmt="pdf"):
     robjects.r('''
         bin_range <- function(d){
             d <- d[order(as.numeric(d[, 2]), as.numeric(d[, 3])), ]
@@ -286,10 +332,10 @@ def snp_density_plot(d_fn, o):
         base.sink('/dev/null')
         for path in os.environ.get('PATH').split(':'):
             if re.search(r'MRBIGR/utils', path):
-                robjects.r('source("' + path + '/CMplot.r")')
+                robjects.r('source("' + path + '/CMplot_2018.r")')
         CMplot = robjects.r['CMplot']
         CMplot(d, plot_type='d', bin_size=1e6, bin_max=bin_max[0], col=robjects.StrVector(['darkgreen', 'yellow', 'red']),
-               file='pdf', memo='', dpi=300, file_output=True, verbose=True, file_prefix=o)
+               file=pfmt, memo='', dpi=300, file_output=True, verbose=True, file_prefix=o)
         base.sink()
     except RRuntimeError:
         return False

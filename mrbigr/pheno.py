@@ -132,7 +132,7 @@ def blup(d):
   lme <- lme4::lmer(formula=reformulate(termlabels=termlabels, response=colnames(datnew)[3]), data=datnew, REML=TRUE)
   ## BLUP
   modelblup <- lme4::ranef(lme)
-  BLUP_out <- as.data.frame(modelblup[[1]] + summary(lme)$coefficients[1])
+  BLUP_out <- as.data.frame(modelblup$taxa + summary(lme)$coefficients[1])
   BLUP_out <- data.frame(rownames(BLUP_out), BLUP_out)
   names(BLUP_out) <- c(colnames(dat)[1], "blups")
   
@@ -140,15 +140,16 @@ def blup(d):
   ID <- data.frame(ID=unique(dat[,1]))
   colnames(ID) <- colnames(dat)[1]
   blup <- merge(ID, BLUP_out, all.x=T)
-  res <- blup[,-1]
+  res <- blup[-1]
   rownames(res) <- blup[,1]
-  res <- res[match(rownames(dat), rownames(res)),]
+  res <- res[match(rownames(dat), rownames(res)),,drop=FALSE]
   return(res)
 }''')
 	robjects.r['options'](warn=-1)
 	base.sink('/dev/null')
 	Blups = robjects.r['Blups']
-	res.loc[:,:] = Blups(d)
+	# res.loc[:,:] = Blups(d)
+	res = Blups(d)
 	base.sink()
 	return res
 
@@ -186,15 +187,16 @@ def blue(d):
   ID <- data.frame(ID=unique(dat[,1]))
   colnames(ID) <- colnames(dat)[1]
   blue <- merge(ID, BLUE_out, all.x=T)
-  res <- blue[,-1]
+  res <- blue[-1]
   rownames(res) <- blue[,1]
-  res <- res[match(rownames(dat), rownames(res)),]
+  res <- res[match(rownames(dat), rownames(res)),,drop=FALSE]
   return(res)
 }''')
 	robjects.r['options'](warn=-1)
 	base.sink('/dev/null')
 	Blues = robjects.r['Blues']
-	res.loc[:,:] = Blues(d)
+	# res.loc[:,:] = Blues(d)
+	res = Blues(d)
 	base.sink()
 	return res
 
@@ -236,6 +238,7 @@ def outlier(d,method):
 	robjects.r['options'](warn=-1)
 	base.sink('/dev/null')
 	rout = robjects.r['Routsi']
-	res.loc[:,:] = rout(d,method)
+	# res.loc[:,:] = rout(d,method)
+	res = rout(d, method)
 	base.sink()
 	return res

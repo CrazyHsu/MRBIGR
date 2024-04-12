@@ -25,14 +25,14 @@ def read_genotype(geno_prefix):
     return G
 
 
-def gwas_lmm(phe, geno, num_threads):
+def gwas_lmm(phe, geno, num_threads, out_dir):
     geno_prefix = geno.split('/')[-1]
-    related_matrix_cmd = 'gemma.linux -bfile {0}.link -gk 1 -o {1}'.format(geno_prefix,geno_prefix)
+    related_matrix_cmd = 'gemma.linux -bfile {0}.link -gk 1 -o {1}'.format(geno_prefix, geno_prefix)
     gwas_cmd = 'gemma.linux -bfile {0}.link -k output/{0}.cXX.txt -lmm -n {1} -o {2}'
     fam = pd.read_csv(geno+'.fam', sep=r'\s+', header=None)
     fam[5] = 1
     fam = pd.merge(fam, phe, left_on=0, right_index=True, how='left')
-    fam.to_csv(geno_prefix+'.link.fam', sep='\t', na_rep='NA', header=None, index=False)
+    fam.to_csv(geno_prefix+'.link.fam', sep='\t', na_rep='NA', header=False, index=False)
     if os.path.exists(geno_prefix+'.link.bed'):
         os.remove(geno_prefix+'.link.bed')
     if os.path.exists(geno_prefix+'.link.bim'):
@@ -51,13 +51,13 @@ def gwas_lmm(phe, geno, num_threads):
     os.remove(geno_prefix+'.link.fam')
     return s
 
-def gwas_lm(phe, geno, num_threads):
+def gwas_lm(phe, geno, num_threads, out_dir):
     geno_prefix = geno.split('/')[-1]
     gwas_cmd = 'gemma.linux -bfile {0}.link -lm -n {1} -o {2}'
     fam = pd.read_csv(geno+'.fam', sep=r'\s+', header=None)
     fam[5] = 1
     fam = pd.merge(fam, phe, left_on=0, right_index=True, how='left')
-    fam.to_csv(geno_prefix+'.link.fam', sep='\t', na_rep='NA', header=None, index=False)
+    fam.to_csv(geno_prefix+'.link.fam', sep='\t', na_rep='NA', header=False, index=False)
     if os.path.exists(geno_prefix+'.link.bed'):
         os.remove(geno_prefix+'.link.bed')
     if os.path.exists(geno_prefix+'.link.bim'):
@@ -166,7 +166,7 @@ def gwas_plot(res, p, prefix, t):
         base.sink('/dev/null')
         for path in os.environ.get('PATH').split(':'):
             if re.search(r'MRBIGR/utils',path):
-                robjects.r('source("'+path+'/CMplot.r")')
+                robjects.r('source("'+path+'/CMplot_2018.r")')
         CMplot = robjects.r['CMplot']
         CMplot(m, plot_type='m', col=robjects.StrVector(["grey30", "grey60"]), ylim=robjects.FloatVector([2, lim]), threshold=thresholdi,
                 cex=robjects.FloatVector([0.5, 0.5, 0.5]), signal_cex=robjects.FloatVector([0.5, 0.5, 0.5]),
@@ -224,8 +224,8 @@ def multi_trait_plot(gwas_dir, qtl, prefix, t):
     bk.columns = ['SNP', 'Chromosome', 'Position', prefix]
     base.sink('/dev/null')
     for path in os.environ.get('PATH').split(':'):
-        if re.search(r'MODAS/utils', path):
-            robjects.r('source("'+path+'/CMplot.r")')
+        if re.search(r'MRBIGR/utils', path):
+            robjects.r('source("'+path+'/CMplot_2018.r")')
     CMplot = robjects.r['CMplot']
     CMplot(bk, plot_type='m', col=robjects.StrVector(["grey30", "grey60"]), ylim=robjects.FloatVector([2, lim]),
            threshold=thresholdi,
@@ -237,7 +237,7 @@ def multi_trait_plot(gwas_dir, qtl, prefix, t):
     base.sink()
 
 
-def boxplot(phe, g, qtl,out):
+def boxplot(phe, g, qtl, out, pfmt="pdf"):
     pandas2ri.activate()
     data_table = importr('data.table')
     base = importr('base')
@@ -268,7 +268,7 @@ def boxplot(phe, g, qtl,out):
     xlab('Group')+ylab('Value')+ggtitle(paste(phe,rs,spe=' '))+
     #scale_y_continuous(breaks=seq(0,4*b,by=b),labels = function(x) formatC(x, format = 'e',digits = 1), limits = c(0, max(d[,1], na.rm=T)*1.2))+
     scale_fill_manual(values=c('#E3FFE2', 'forest green'))
-    ggsave(paste(phe,'_',rs,'_','boxplot','.pdf',sep=''),plot=p,width=3.5,height=4.5)
+    ggsave(paste(phe,'_',rs,'_','boxplot',pfmt,sep=''),plot=p,width=3.5,height=4.5)
 }''')
     robjects.r['options'](warn=-1)
     base.sink('/dev/null')
@@ -284,7 +284,7 @@ def boxplot(phe, g, qtl,out):
         d.columns = ['trait.'+d.columns[0].replace('-', '.'), 'haplotype']
         genotype = str(allele[row['SNP']]['a1'].values)+str(allele[row['SNP']]['a0'].values)
         level = robjects.StrVector([allele[row['SNP']]['a1'].values*2, allele[row['SNP']]['a0'].values*2])
-        box_plot(d, row['phe_name'], row['SNP'], level)
+        box_plot(d, row['phe_name'], row['SNP'], level, pfmt)
         d.to_csv(out+'/'+row['phe_name']+'_'+row['SNP']+'_'+genotype+'.csv', na_rep='NA')
     base.sink()
 

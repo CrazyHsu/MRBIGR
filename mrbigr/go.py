@@ -98,9 +98,9 @@ def go_enrich(gene, orgdb, pvalue):
         return None
 
 
-def go_plot(res, plot_type, o):
+def go_plot(res, plot_type, o, pfmt="pdf"):
     robjects.r('''
-        p_go <- function(res, plot_type, o){
+        p_go <- function(res, plot_type, o, pfmt){
             options(warn = - 1)
             suppressMessages(library(clusterProfiler))
             suppressMessages(library(ggplot2))
@@ -135,14 +135,14 @@ def go_plot(res, plot_type, o):
                         p <- emapplot(x)
                     else if(p_type=='upsetplot')
                         p <- upsetplot(x)
-                    suppressMessages(ggsave(paste(o,go_type,p_type,'pdf',sep='.'), plot=p, device='pdf', width=9))
+                    suppressMessages(ggsave(paste(o,go_type,p_type,pfmt,sep='.'), plot=p, device=pfmt, width=9))
                 }
             }
         }
     ''')
     p_go = robjects.r('p_go')
     try:
-        p_go(res, plot_type, o)
+        p_go(res, plot_type, o, pfmt)
         return True
     except Exception:
         return False

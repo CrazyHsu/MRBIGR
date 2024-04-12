@@ -28,7 +28,7 @@ def convert(g, n):
 
 def vcf2plink_bed(vcf, out):
 	try:
-		os.system('plink --vcf {0} --out {1} --double-id --biallelic-only strict '.format(vcf,out))
+		os.system('plink --vcf {0} --out {1} --double-id --biallelic-only strict --allow-extra-chr'.format(vcf,out))
 	except Exception:
 		return False
 	else:
@@ -36,7 +36,7 @@ def vcf2plink_bed(vcf, out):
 
 def plink_bed2vcf(bed, out):
 	try:
-		os.system('plink --bfile {0} --recode vcf-iid --out {1} '.format(bed,out))
+		os.system('plink --bfile {0} --recode vcf-iid --out {1} --allow-extra-chr'.format(bed,out))
 	except Exception:
 		return False
 	else:
@@ -93,7 +93,7 @@ def hap2plink_bed(hap, plink):
 
 def snp_qc(bed, out, maf, mis, mind):
 	try:
-		os.system('plink --bfile {0} --out {1} --maf {2} --geno {3} --mind {4} --make-bed'.format(bed,out, maf, mis, mind))
+		os.system('plink --bfile {0} --out {1} --maf {2} --geno {3} --mind {4} --make-bed --allow-extra-chr'.format(bed,out, maf, mis, mind))
 	except Exception:
 		return False
 	else:
@@ -192,7 +192,7 @@ def ped2fasta(ped, out):
 
 def fasttree(bed, out):
 	try:
-		os.system('plink --bfile {0} --recode --out {1}'.format(bed, out))
+		os.system('plink --bfile {0} --recode --out {1} --allow-extra-chr'.format(bed, out))
 		ped2fasta(out+'.ped', out+'.fasta')
 		os.system('FastTree -nt -gtr -quiet {0}.fasta >{1}.tree.nwk'.format(out, out))
 	except Exception:
