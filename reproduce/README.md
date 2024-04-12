@@ -1,5 +1,7 @@
 # unpack MRBIGR_data.tar.gz
+```bash
 tar -xf ../MRBIGR_data/MRBIGR_data.tar.gz -C ../MRBIGR_data
+```
 
 # clump to 381013 SNPs
 ```bash

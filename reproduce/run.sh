@@ -1,3 +1,6 @@
+# unpack MRBIGR_data.tar.gz
+tar -xf ../MRBIGR_data/MRBIGR_data.tar.gz -C ../MRBIGR_data
+
 # clump to 381013 SNPs
 python ../MRBIGR.py geno -clump -g ../MRBIGR_data/chr_HAMP -o ../MRBIGR_data/chr_HAMP_380k -r 0.7
 
