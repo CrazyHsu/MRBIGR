@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import re, os
 import pandas as pd
 from multiprocessing import Pool

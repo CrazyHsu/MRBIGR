@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import pandas as pd
 import rpy2.robjects.packages as packages
 from rpy2.robjects import pandas2ri

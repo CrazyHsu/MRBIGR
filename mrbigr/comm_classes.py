@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 class GenePredExtLine(object):
     ' a line of gpe file'
 

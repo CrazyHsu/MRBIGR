@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import mrbigr.geno as mg
 import mrbigr.pheno as mp
 import mrbigr.gwas as mw
@@ -445,7 +448,8 @@ def mr(args, log):
 	if qtl.empty:
 		log.log('the exposure QTL file {} is empty and software is terminated.'.format(args.qtl))
 		sys.exit()
-	mTrait = mTrait.loc[:, qtl.phe_name.unique()]
+	tmp_mTrait_list = np.intersect1d(mTrait.columns, qtl.phe_name.unique())
+	mTrait = mTrait.loc[:, tmp_mTrait_list]
 	if not os.path.exists(args.g+'.bed'):
 		raise ArgsError('the plink bed format genotype file {} is not exists.'.format(args.g))
 	if args.lm and args.mlm:

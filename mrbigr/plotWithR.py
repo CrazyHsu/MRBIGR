@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 drawPhyloPlotR = '''
     library(ggplot2)
     suppressMessages(library(ggtree))

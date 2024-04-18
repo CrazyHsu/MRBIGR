@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import mrbigr.multiprocess as mu
 from pandas_plink import read_plink1_bin
 import pandas as pd
