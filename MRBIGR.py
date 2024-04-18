@@ -300,7 +300,7 @@ def gwas(args, log):
 			if args.pca_file:
 				pca_file = args.pca_file
 			else:
-				os.makedirs("output")
+				mplt_new.resolveDir("output", chdir=False)
 				pca_file = os.path.join("output", args.o + '_gwas_pca.csv')
 				pc = mg.pca(args.g + '.bed', 3)
 				pc.insert(0, 'name1', 1)
