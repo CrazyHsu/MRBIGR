@@ -295,10 +295,20 @@ def gwas(args, log):
 		model = 'lmm'
 		if args.model:
 			model = args.model
+		pca_file = None
+		if args.c_pca:
+			if args.pca_file:
+				pca_file = args.pca_file
+			else:
+				os.makedirs("output")
+				pca_file = os.path.join("output", args.o + '_gwas_pca.csv')
+				pc = mg.pca(args.g + '.bed', 3)
+				pc.insert(0, 'name1', 1)
+				pc.to_csv(pca_file, na_rep='NA', index=False, header=False, sep=' ')
 		if model == 'lmm':
-			s = mw.gwas_lmm(phe, args.g, thread, args.o)
+			s = mw.gwas_lmm(phe, args.g, thread, args.o, pca_file)
 		if model == 'lm':
-			s = mw.gwas_lm(phe, args.g, thread, args.o)
+			s = mw.gwas_lm(phe, args.g, thread, args.o, pca_file)
 		if s is None:
 			log.log('GWAS faild, please cheak your data.')
 			sys.exit()
@@ -869,6 +879,8 @@ parser_gwas.add_argument('-p', help=' Phenotype file of *.csv format after proce
 parser_gwas.add_argument('-o', default='gwas_output', metavar='[pheno_output]', help='Prefix of the output files. It should be used together with the parameters -qtl/-anno/-visual/-peaktest/-genetest.')
 parser_gwas.add_argument('-thread', default=1, type=int, metavar='[1]', help=' Number of threads for GWAS and QTL analysis, default is 1. It should be used together with the parameters –gwas/-qtl/-visual.')
 parser_gwas.add_argument('-gwas', action='store_true', help='Perform GWAS using a linear mixed model (lmm) or a linear model (lm) implemented in GEMMA. All the result files will be generated in a newly-built output directory located in the working directory by default. It should be used together with the parameters –g/-p/–model/-thread.')
+parser_gwas.add_argument('-c_pca', action='store_true', help='Whether to specify PCA as covariate. Default dimension is 3. Or you can specify the PCA covariate file by using -pca_file.')
+parser_gwas.add_argument('-pca_file', default=None, metavar='pca_file', help='The PCA covariate file which should be used together with the parameter –c_pca.')
 parser_gwas.add_argument('-model', default='lmm', metavar='[lmm]', help='Fit a linear mixed model (lmm) or a linear model (lm), default is lmm. Options: lmm, lm. It should be used together with the parameter –gwas.' )
 parser_gwas.add_argument('-qtl', action='store_true', help='QTL detection from the GWAS results based on the PLINK-clump method. It should be used together with the parameter –i/-p1/-p2/-p2n/-thread.')
 parser_gwas.add_argument('-i', default='output', metavar='[output]', help='Parent directory of the GWAS output files *.assoc.txt, default is output. It should be used together with the parameter –qtl.')

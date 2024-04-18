@@ -28,10 +28,13 @@ def read_genotype(geno_prefix):
     return G
 
 
-def gwas_lmm(phe, geno, num_threads, out_dir):
+def gwas_lmm(phe, geno, num_threads, out_dir, pca_file):
     geno_prefix = geno.split('/')[-1]
     related_matrix_cmd = 'gemma.linux -bfile {0}.link -gk 1 -o {1}'.format(geno_prefix, geno_prefix)
-    gwas_cmd = 'gemma.linux -bfile {0}.link -k output/{0}.cXX.txt -lmm -n {1} -o {2}'
+    if pca_file:
+        gwas_cmd = 'gemma.linux -bfile {0}.link -k output/{0}.cXX.txt -lmm -n {1} -o {2}' + ' -c {}'.format(pca_file)
+    else:
+        gwas_cmd = 'gemma.linux -bfile {0}.link -k output/{0}.cXX.txt -lmm -n {1} -o {2}'
     fam = pd.read_csv(geno+'.fam', sep=r'\s+', header=None)
     fam[5] = 1
     fam = pd.merge(fam, phe, left_on=0, right_index=True, how='left')
@@ -54,7 +57,7 @@ def gwas_lmm(phe, geno, num_threads, out_dir):
     os.remove(geno_prefix+'.link.fam')
     return s
 
-def gwas_lm(phe, geno, num_threads, out_dir):
+def gwas_lm(phe, geno, num_threads, out_dir, pca_file):
     geno_prefix = geno.split('/')[-1]
     gwas_cmd = 'gemma.linux -bfile {0}.link -lm -n {1} -o {2}'
     fam = pd.read_csv(geno+'.fam', sep=r'\s+', header=None)
