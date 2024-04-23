@@ -38,6 +38,6 @@ source ~/.bashrc
 ## Usage
 To reproduce the images in the MRBIGR paper, you can follow the instruments in [`reproduce/run_from_docker.sh`](reproduce/run_from_docker.sh)
 
-You can also refer to the local :open_book:[`user manual`](MRBIGR_manual.pdf) or [online website](https://mrbigr.github.io) for more usage about MRBIGR.
+You can also refer to the [online website](https://mrbigr.github.io) for more usage about MRBIGR.
 
 
